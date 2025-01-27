@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cálculo Trifásico</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Enlazar el archivo CSS desde la carpeta estática -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style_trif.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Cálculo Trifásico</h1>
+
+        <label for="voltage-supply">Tensión de suministro (V):</label>
+        <input type="number" id="voltage-supply" placeholder="Ingresa la tensión de suministro">
+
+        <label for="power">Potencia total (W):</label>
+        <input type="number" id="power" placeholder="Ingresa la potencia total">
+
+        <label for="distance">Longitud del tendido hasta la carga (m):</label>
+        <input type="number" id="distance" placeholder="Ingresa la longitud">
+
+        <label for="temperature">Temperatura ambiente (°C):</label>
+        <input type="number" id="temperature" placeholder="Ingresa la temperatura ambiente" value="20">
+
+        <label for="cosphi">Factor de potencia (cos(φ)):</label>
+        <input type="number" id="cosphi" placeholder="Ingresa el factor de potencia (0.1 a 1.0)" value="1" step="0.01">
+
+        <label for="material">Material del conductor:</label>
+        <select id="material">
+            <option value="1.68e-8">Cobre</option>
+            <option value="2.82e-8">Aluminio</option>
+        </select>
+
+        <label for="section">Sección del cable (mm²):</label>
+        <select id="section">
+            <option value="1.5">1.5 mm²</option>
+            <option value="2.5">2.5 mm²</option>
+            <option value="4">4 mm²</option>
+            <option value="6">6 mm²</option>
+            <option value="10">10 mm²</option>
+            <option value="16">16 mm²</option>
+            <option value="25">25 mm²</option>
+        </select>
+
+        <button onclick="calculateVoltageDrop()">Calcular Caída de Tensión</button>
+
+        <div id="result-voltage-drop" class="result"></div>
+        <div id="error-message" class="error" style="display: none;"></div>
+        <div class="chart-container">
+            <canvas id="voltageDropChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let chartInstance;
+
+        function calculateVoltageDrop() {
+            const voltageSupply = parseFloat(document.getElementById('voltage-supply').value);
+            const distance = parseFloat(document.getElementById('distance').value);
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const cosphi = parseFloat(document.getElementById('cosphi').value);
+            const material = parseFloat(document.getElementById('material').value);
+            const section = parseFloat(document.getElementById('section').value);
+            const power = parseFloat(document.getElementById('power').value);
+
+            const resistancePerMeter = (material * (1 + 0.004 * (temperature - 20))) / (section * 1e-6);
+            const current = power / (voltageSupply * Math.sqrt(3));
+
+            const voltageDropTotal = (Math.sqrt(3) * current * resistancePerMeter * distance * cosphi).toFixed(2);
+            const finalVoltage = (voltageSupply - voltageDropTotal).toFixed(2);
+            const powerLoss = (current ** 2 * resistancePerMeter * distance * 3).toFixed(2);
+
+            const points = 10;
+            const step = distance / points;
+            const data = [];
+            const labels = [];
+
+            for (let i = 0; i <= points; i++) {
+                const d = i * step;
+                const voltageDrop = (Math.sqrt(3) * current * resistancePerMeter * d * cosphi);
+                const voltageAtLoad = voltageSupply - voltageDrop;
+                labels.push(d.toFixed(1));
+                data.push(voltageAtLoad.toFixed(2));
+            }
+
+            displayResults(finalVoltage, voltageDropTotal, powerLoss);
+            updateChart(labels, data);
+        }
+
+        function displayResults(finalVoltage, voltageDropTotal, powerLoss) {
+            const resultDiv = document.getElementById('result-voltage-drop');
+            resultDiv.innerHTML = `
+                <p>Voltaje final en la carga: <strong>${finalVoltage} V</strong></p>
+                <p>Caída de tensión total: <strong>${voltageDropTotal} V</strong></p>
+                <p>Potencia disipada en el cable: <strong>${powerLoss} W</strong></p>
+            `;
+        }
+
+        function updateChart(labels, data) {
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('voltageDropChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Tensión a lo largo de la longitud (V)',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Longitud (m)'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Tensión (V)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
